@@ -142,7 +142,9 @@ def generate_citizen_advisory(current_pm25, morning_pm25, midday_pm25):
         now_action = "Ideal air quality for outdoor activities."
         now_windows = "Safe to ventilate home."
 
-    if morning_pm25 >= 150:
+    if morning_pm25 is None:
+        morning_advice = "No forecast available for the next 6 AM."
+    elif morning_pm25 >= 150:
         morning_advice = f"AVOID morning walk. Inversion layer traps heavy smoke ({morning_pm25} µg/m³)."
     elif morning_pm25 >= 80:
         morning_advice = f"Caution. Moderate smog forecasted ({morning_pm25} µg/m³). Limit cardio."
@@ -151,7 +153,8 @@ def generate_citizen_advisory(current_pm25, morning_pm25, midday_pm25):
 
     alternative = (
         f"Shift outdoor activity to 2:00 PM (Forecast: drops to {midday_pm25} µg/m³)."
-        if midday_pm25 < morning_pm25 else "Midday air quality remains stable."
+        if (midday_pm25 is not None and morning_pm25 is not None and midday_pm25 < morning_pm25)
+        else "No clear improvement forecast for midday."
     )
 
     return {
@@ -173,41 +176,52 @@ def generate_citizen_advisory(current_pm25, morning_pm25, midday_pm25):
 # AIR QUALITY & WIND ENGINES (Step 3A & 3B)
 # -------------------------------------------------------------------------
 def fetch_air_quality(lat, lon):
+    """Returns real readings or None. Never substitutes made-up numbers."""
     url = (
         f"https://air-quality-api.open-meteo.com/v1/air-quality?"
         f"latitude={lat}&longitude={lon}"
         f"&current=pm10,pm2_5,carbon_monoxide"
-        f"&hourly=pm2_5"
+        f"&hourly=pm2_5&forecast_days=3"
         f"&timezone=Asia/Kolkata"
     )
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=4) as response:
+        with urllib.request.urlopen(req, timeout=6) as response:
             data = json.loads(response.read().decode('utf-8'))
-            
-        current = data.get("current", {})
-        current_pm25 = current.get("pm2_5", 135.0)
-        current_pm10 = current.get("pm10", 620.0)
-        co = current.get("carbon_monoxide", 320.0)
-        
-        hourly_times = data.get("hourly", {}).get("time", [])
-        hourly_pm25 = data.get("hourly", {}).get("pm2_5", [])
-        morning_pm25, midday_pm25 = current_pm25, current_pm25
-        
-        if current.get("time", "") in hourly_times:
-            idx = hourly_times.index(current.get("time", ""))
-            for i, t in enumerate(hourly_times[idx:]):
-                if "T06:00" in t and morning_pm25 == current_pm25:
-                    morning_pm25 = hourly_pm25[idx + i]
-                if "T14:00" in t and midday_pm25 == current_pm25:
-                    midday_pm25 = hourly_pm25[idx + i]
-            pm25_1h_ago = hourly_pm25[idx - 1] if idx > 0 else current_pm25
-        else:
-            pm25_1h_ago = current_pm25 - 30.0
-    except Exception:
-        current_pm25, current_pm10, co, pm25_1h_ago, morning_pm25, midday_pm25 = 142.5, 580.0, 340.0, 105.0, 185.0, 85.0
 
-    delta = round(current_pm25 - pm25_1h_ago, 2)
+        current = data["current"]
+        current_pm25 = current["pm2_5"]
+        if current_pm25 is None:
+            return None
+        current_pm10 = current.get("pm10")
+        co = current.get("carbon_monoxide")
+
+        hourly_times = data["hourly"]["time"]
+        hourly_pm25 = data["hourly"]["pm2_5"]
+
+        # "current.time" can fall between hourly slots (e.g. 05:15), so round DOWN to the hour before lookup.
+        hour_key = str(current.get("time", ""))[:13] + ":00"
+        idx = hourly_times.index(hour_key)
+
+        pm25_1h_ago = hourly_pm25[idx - 1] if idx > 0 else None
+
+        morning_pm25 = None   # next 06:00 after now
+        midday_pm25 = None    # next 14:00 after now
+        for i in range(idx + 1, len(hourly_times)):
+            t, v = hourly_times[i], hourly_pm25[i]
+            if v is None:
+                continue
+            if morning_pm25 is None and t.endswith("T06:00"):
+                morning_pm25 = v
+            if midday_pm25 is None and t.endswith("T14:00"):
+                midday_pm25 = v
+            if morning_pm25 is not None and midday_pm25 is not None:
+                break
+    except Exception as e:
+        print(f"Open-Meteo air-quality error: {e}")
+        return None
+
+    delta = round(current_pm25 - pm25_1h_ago, 2) if pm25_1h_ago is not None else None
     return {
         "pm25": current_pm25,
         "pm10": current_pm10,
@@ -215,20 +229,24 @@ def fetch_air_quality(lat, lon):
         "delta_1h": delta,
         "morning_forecast_pm25": morning_pm25,
         "midday_forecast_pm25": midday_pm25,
-        "investigation_triggered": (current_pm25 >= 100.0 or delta >= 25.0)
+        "investigation_triggered": (current_pm25 >= 30.0 or (delta is not None and delta >= 20.0)),
     }
 
 def fetch_wind_and_cone(lat, lon, lookback_hours=2.5):
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=wind_speed_10m,wind_direction_10m"
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=4) as response:
+        with urllib.request.urlopen(req, timeout=6) as response:
             data = json.loads(response.read().decode('utf-8'))
-        speed = data.get("current", {}).get("wind_speed_10m", 12.0)
-        wind_dir = data.get("current", {}).get("wind_direction_10m", 75.0)
-    except Exception:
-        speed, wind_dir = 12.0, 75.0
+        speed = data["current"]["wind_speed_10m"]
+        wind_dir = data["current"]["wind_direction_10m"]
+        if speed is None or wind_dir is None:
+            return None
+    except Exception as e:
+        print(f"Open-Meteo wind error: {e}")
+        return None
 
+    # wind_direction_10m is where the wind comes FROM, so the upwind corridor points along it.
     reverse_bearing = wind_dir
     dist = speed * lookback_hours
     R = 6371.0
@@ -244,6 +262,7 @@ def fetch_wind_and_cone(lat, lon, lookback_hours=2.5):
     center_pt = project_point(lat, lon, reverse_bearing)
 
     return {
+        "wind_dir": wind_dir,
         "speed_kmh": speed,
         "drift_distance_km": round(dist, 1),
         "center_point": center_pt,
@@ -280,6 +299,16 @@ def check_nasa_fires(polygon):
 # ---------------------------------------------------------
 # MAIN LAMBDA HANDLER ROUTER
 # ---------------------------------------------------------
+def _resp(status, payload):
+    return {
+        "statusCode": status,
+        "headers": {"Access-Control-Allow-Origin": "*", "Content-Type": "application/json"},
+        "body": json.dumps(payload),
+    }
+
+AQ_DOWN = (502, {"error": "Air-quality data source is unavailable right now."})
+WIND_DOWN = (502, {"error": "Wind data source is unavailable right now."})
+
 def lambda_handler(event, context):
     try:
         body = event.get('body')
@@ -297,6 +326,8 @@ def lambda_handler(event, context):
         # BRANCH A: CITIZEN ADVISORY MODE
         if mode == "citizen":
             aq = fetch_air_quality(lat, lon)
+            if aq is None:
+                return _resp(*AQ_DOWN)
             advisory = generate_citizen_advisory(
                 aq["pm25"], 
                 aq["morning_forecast_pm25"], 
@@ -316,6 +347,8 @@ def lambda_handler(event, context):
         elif mode == "fire_trace":
             lookback = payload.get("lookback_hours", 2.5)
             aq = fetch_air_quality(lat, lon)
+            if aq is None:
+                return _resp(*AQ_DOWN)
 
             if not aq["investigation_triggered"]:
                 return {
@@ -330,6 +363,8 @@ def lambda_handler(event, context):
                 }
 
             wind_cone = fetch_wind_and_cone(lat, lon, lookback)
+            if wind_cone is None:
+                return _resp(*WIND_DOWN)
             fires = check_nasa_fires(wind_cone["cone_coordinates"])
 
             if fires:
@@ -361,7 +396,7 @@ def lambda_handler(event, context):
                 {
                     "type": "Feature",
                     "geometry": {"type": "Polygon", "coordinates": [wind_cone["cone_coordinates"]]},
-                    "properties": {"layer": "search_wedge", "drift_km": wind_cone["drift_distance_km"]}
+                    "properties": {"layer": "search_wedge", "drift_km": wind_cone["drift_distance_km"], "wind_from_deg": wind_cone["wind_dir"], "wind_speed_kmh": wind_cone["speed_kmh"]}
                 }
             ]
 
@@ -389,7 +424,7 @@ def lambda_handler(event, context):
             }
 
         else:
-            return {"statusCode": 400, "body": json.dumps({"error": "Invalid mode."})}
+            return _resp(400, {"error": "Invalid mode."})
 
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        return _resp(500, {"error": str(e)})
