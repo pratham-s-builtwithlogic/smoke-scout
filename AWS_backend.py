@@ -229,7 +229,7 @@ def fetch_wind_and_cone(lat, lon, lookback_hours=2.5):
     except Exception:
         speed, wind_dir = 12.0, 75.0
 
-    reverse_bearing = (wind_dir + 180) % 360
+    reverse_bearing = wind_dir
     dist = speed * lookback_hours
     R = 6371.0
 
