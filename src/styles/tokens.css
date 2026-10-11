@@ -1,0 +1,86 @@
+:root {
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-sans: 'Instrument Sans', 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  --r-1: 4px;
+  --r-2: 6px;
+  --r-3: 10px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --t-fast: 140ms;
+  --t-med: 240ms;
+  --header-h: 60px;
+  --gutter: clamp(16px, 4vw, 40px);
+}
+
+/* Midnight green: landing and investigation */
+.theme-ink {
+  color-scheme: dark;
+  --bg: oklch(0.185 0.028 175);
+  --bg-sunken: oklch(0.155 0.026 175);
+  --surface-1: oklch(0.225 0.03 175);
+  --surface-2: oklch(0.265 0.031 175);
+  --surface-3: oklch(0.31 0.032 175);
+
+  --line: oklch(0.96 0.02 95 / 0.1);
+  --line-strong: oklch(0.96 0.02 95 / 0.2);
+  --highlight: oklch(0.96 0.02 95 / 0.05);
+
+  --text: oklch(0.955 0.02 95);
+  --text-2: oklch(0.8 0.02 120);
+  --text-3: oklch(0.68 0.025 150);
+
+  --accent: oklch(0.8 0.14 78);
+  --accent-ink: oklch(0.2 0.03 78);
+  --focus: oklch(0.8 0.14 78);
+
+  --good: oklch(0.8 0.14 150);
+  --caution: oklch(0.82 0.14 82);
+  --serious: oklch(0.72 0.17 27);
+  --severe: oklch(0.62 0.2 25);
+
+  --shadow-1: 0 0 0 1px var(--line), 0 1px 2px oklch(0 0 0 / 0.35);
+  --shadow-2: 0 0 0 1px var(--line), 0 1px 1px oklch(0 0 0 / 0.25), 0 8px 16px -4px oklch(0 0 0 / 0.4),
+    0 24px 40px -16px oklch(0 0 0 / 0.45);
+}
+
+/* Warm ivory: resident and about */
+.theme-paper {
+  color-scheme: light;
+  --bg: oklch(0.962 0.018 95);
+  --bg-sunken: oklch(0.935 0.02 95);
+  --surface-1: oklch(0.985 0.01 95);
+  --surface-2: oklch(0.995 0.005 95);
+  --surface-3: oklch(0.94 0.02 95);
+
+  --line: oklch(0.25 0.04 175 / 0.12);
+  --line-strong: oklch(0.25 0.04 175 / 0.24);
+  --highlight: oklch(1 0 0 / 0.9);
+
+  --text: oklch(0.22 0.04 175);
+  --text-2: oklch(0.4 0.035 175);
+  --text-3: oklch(0.48 0.03 175);
+
+  --accent: oklch(0.3 0.05 175);
+  --accent-ink: oklch(0.97 0.02 95);
+  --focus: oklch(0.5 0.17 255);
+
+  --good: oklch(0.45 0.12 150);
+  --caution: oklch(0.52 0.12 70);
+  --serious: oklch(0.5 0.18 27);
+  --severe: oklch(0.4 0.18 25);
+
+  --shadow-1: 0 0 0 1px var(--line), 0 1px 2px oklch(0.3 0.03 175 / 0.06);
+  --shadow-2: 0 0 0 1px var(--line), 0 1px 1px oklch(0.3 0.03 175 / 0.04), 0 8px 16px -4px oklch(0.3 0.03 175 / 0.08),
+    0 20px 32px -12px oklch(0.3 0.03 175 / 0.1);
+}
